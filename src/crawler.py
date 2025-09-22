@@ -229,7 +229,15 @@ class MMABoardCrawler:
         elif relative_url.startswith('/'):
             return self.base_url + relative_url
         else:
-            return self.base_url + '/' + relative_url
+            # 상대 URL에 필요한 파라미터 추가
+            if 'boardView.do' in relative_url and 'pageIndex=' not in relative_url:
+                # pageIndex와 기타 필수 파라미터 추가
+                if '?' in relative_url:
+                    relative_url += '&pageIndex=1&searchCondition=&searchKeyword=&pageUnit=10&mc=usr0000127&jbc_gonggibodo=0'
+                else:
+                    relative_url += '?pageIndex=1&searchCondition=&searchKeyword=&pageUnit=10&mc=usr0000127&jbc_gonggibodo=0'
+            
+            return self.base_url + '/board/' + relative_url
     
     def process_posts(self, posts: List[Dict]) -> List[Dict]:
         """
