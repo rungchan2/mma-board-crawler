@@ -139,7 +139,7 @@ class EmailSender:
             </div>
             <div class="post-summary">
                 <strong>📋 요약:</strong><br>
-                {post.get('summary', '요약 정보가 없습니다.').replace('\n', '<br>')}
+                {post.get('summary', '요약 정보가 없습니다.').replace(chr(10), '<br>')}
             </div>
         </div>
 """
