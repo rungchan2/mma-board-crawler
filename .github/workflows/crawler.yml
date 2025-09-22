@@ -29,5 +29,6 @@ jobs:
         SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
         SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
         RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+        MANUAL_MODE: ${{ github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
       run: |
         python src/crawler.py

@@ -2,6 +2,7 @@
 """
 병무청 육군 공지사항 크롤러 - GitHub Actions 버전
 """
+import os
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, date
@@ -33,6 +34,67 @@ class MMABoardCrawler:
         # 컴포넌트 초기화
         self.summarizer = SimpleTextSummarizer(max_length=300)
         self.email_sender = EmailSender()
+    
+    def get_latest_posts(self, count: int = 1) -> List[Dict]:
+        """
+        최신 게시글 목록 조회 (수동 테스트용)
+        """
+        posts = []
+        
+        try:
+            logger.info(f"🔍 최신 게시글 {count}개 크롤링: {self.base_url + self.board_url}")
+            
+            response = self.session.get(
+                self.base_url + self.board_url, 
+                timeout=30
+            )
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # 게시글 테이블 찾기
+            table = soup.select_one('table')
+            if not table:
+                logger.warning("⚠️  게시글 테이블을 찾을 수 없습니다.")
+                return posts
+            
+            # 테이블 행 추출
+            rows = table.select('tbody tr')
+            logger.info(f"📄 총 {len(rows)}개 행 발견")
+            
+            for row in rows[:count]:  # 최신 N개만
+                cells = row.select('td')
+                
+                # 최소 5개 셀이 있어야 함
+                if len(cells) < 5:
+                    continue
+                
+                try:
+                    # 제목과 링크 추출
+                    title_cell = cells[1]
+                    title_link = title_cell.select_one('a')
+                    
+                    if title_link and title_link.get('href'):
+                        post = {
+                            'title': title_link.get_text(strip=True),
+                            'url': self._build_full_url(title_link.get('href')),
+                            'date': cells[3].get_text(strip=True),
+                            'number': cells[0].get_text(strip=True)
+                        }
+                        posts.append(post)
+                        logger.info(f"✅ 게시글 발견: {post['title']}")
+                
+                except (ValueError, AttributeError) as e:
+                    continue
+            
+            logger.info(f"🎯 최신 게시글 {len(posts)}건 수집 완료")
+            
+        except requests.RequestException as e:
+            logger.error(f"❌ 네트워크 오류: {e}")
+        except Exception as e:
+            logger.error(f"❌ 크롤링 오류: {e}")
+        
+        return posts
     
     def get_today_posts(self) -> List[Dict]:
         """
@@ -191,16 +253,29 @@ class MMABoardCrawler:
         logger.info("🚀 병무청 육군 공지사항 크롤러 시작")
         logger.info(f"📅 실행 시간: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
+        # 수동 실행 모드 확인 (GitHub Actions workflow_dispatch)
+        is_manual = os.getenv('MANUAL_MODE', 'false').lower() == 'true'
+        
         try:
-            # 1. 오늘 작성된 게시글 조회
-            today_posts = self.get_today_posts()
-            
-            if not today_posts:
-                logger.info("ℹ️  오늘 작성된 새 게시글이 없습니다.")
-                return
+            if is_manual:
+                # 수동 실행: 최신 게시글 1개
+                logger.info("🔧 수동 실행 모드: 최신 게시글 1개 조회")
+                posts = self.get_latest_posts(1)
+                
+                if not posts:
+                    logger.info("❌ 게시글을 찾을 수 없습니다.")
+                    return
+            else:
+                # 자동 실행: 오늘 작성된 게시글
+                logger.info("⏰ 자동 실행 모드: 오늘 작성된 게시글 조회")
+                posts = self.get_today_posts()
+                
+                if not posts:
+                    logger.info("ℹ️  오늘 작성된 새 게시글이 없습니다.")
+                    return
             
             # 2. 게시글 내용 크롤링 및 요약
-            processed_posts = self.process_posts(today_posts)
+            processed_posts = self.process_posts(posts)
             
             # 3. 이메일 알림 발송
             success = self.email_sender.send_notification(processed_posts)
