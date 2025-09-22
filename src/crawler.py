@@ -62,29 +62,39 @@ class MMABoardCrawler:
             rows = table.select('tbody tr')
             logger.info(f"📄 총 {len(rows)}개 행 발견")
             
-            for row in rows[:count]:  # 최신 N개만
+            for idx, row in enumerate(rows[:count]):  # 최신 N개만
                 cells = row.select('td')
                 
-                # 최소 5개 셀이 있어야 함
-                if len(cells) < 5:
+                logger.debug(f"행 {idx}: 셀 개수 = {len(cells)}")
+                
+                # 최소 4개 셀이 있어야 함 (제목, 첨부, 작성일, 조회수)
+                if len(cells) < 4:
+                    logger.debug(f"행 {idx}: 셀 부족 (최소 4개 필요)")
                     continue
                 
                 try:
-                    # 제목과 링크 추출
-                    title_cell = cells[1]
+                    # 각 셀의 내용 로깅
+                    for i, cell in enumerate(cells[:4]):
+                        logger.debug(f"  셀 {i}: {cell.get_text(strip=True)[:30]}")
+                    
+                    # 제목과 링크 추출 (첫 번째 셀)
+                    title_cell = cells[0]
                     title_link = title_cell.select_one('a')
                     
                     if title_link and title_link.get('href'):
                         post = {
                             'title': title_link.get_text(strip=True),
                             'url': self._build_full_url(title_link.get('href')),
-                            'date': cells[3].get_text(strip=True),
-                            'number': cells[0].get_text(strip=True)
+                            'date': cells[2].get_text(strip=True),  # 세 번째 셀이 날짜
+                            'number': str(idx + 1)  # 번호는 인덱스로 대체
                         }
                         posts.append(post)
                         logger.info(f"✅ 게시글 발견: {post['title']}")
+                    else:
+                        logger.debug(f"행 {idx}: 링크 없음")
                 
                 except (ValueError, AttributeError) as e:
+                    logger.debug(f"행 {idx}: 파싱 오류 - {e}")
                     continue
             
             logger.info(f"🎯 최신 게시글 {len(posts)}건 수집 완료")
@@ -124,24 +134,24 @@ class MMABoardCrawler:
             rows = table.select('tbody tr')
             logger.info(f"📄 총 {len(rows)}개 행 발견")
             
-            for row in rows:
+            for row_idx, row in enumerate(rows):
                 cells = row.select('td')
                 
-                # 최소 5개 셀이 있어야 함 (번호, 제목, 첨부, 작성일, 조회수)
-                if len(cells) < 5:
+                # 최소 4개 셀이 있어야 함 (제목, 첨부, 작성일, 조회수)
+                if len(cells) < 4:
                     continue
                 
                 try:
-                    # 작성일 추출 및 파싱
-                    date_text = cells[3].get_text(strip=True)
+                    # 작성일 추출 및 파싱 (세 번째 셀)
+                    date_text = cells[2].get_text(strip=True)
                     
                     # 날짜 형식 확인 (YYYY-MM-DD)
                     post_date = datetime.strptime(date_text, '%Y-%m-%d').date()
                     
                     # 오늘 날짜와 비교
                     if post_date == today:
-                        # 제목과 링크 추출
-                        title_cell = cells[1]
+                        # 제목과 링크 추출 (첫 번째 셀)
+                        title_cell = cells[0]
                         title_link = title_cell.select_one('a')
                         
                         if title_link and title_link.get('href'):
@@ -149,7 +159,7 @@ class MMABoardCrawler:
                                 'title': title_link.get_text(strip=True),
                                 'url': self._build_full_url(title_link.get('href')),
                                 'date': date_text,
-                                'number': cells[0].get_text(strip=True)
+                                'number': str(row_idx + 1)
                             }
                             posts.append(post)
                             logger.info(f"✅ 새 게시글 발견: {post['title']}")
